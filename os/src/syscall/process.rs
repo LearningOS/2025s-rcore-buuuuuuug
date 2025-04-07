@@ -1,6 +1,6 @@
 //! Process management syscalls
 use crate::{
-    task::{exit_current_and_run_next, suspend_current_and_run_next},
+    task::{exit_current_and_run_next, suspend_current_and_run_next, get_sys_call_cnt},
     timer::get_time_us,
 };
 
@@ -41,5 +41,27 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 // TODO: implement the syscall
 pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
     trace!("kernel: sys_trace");
+    match _trace_request {
+        0 => {
+            // id 应被视作 *const u8 ，表示读取当前任务 id 地址处一个字节的无符号整数值
+            let read = unsafe {
+                core::slice::from_raw_parts(_id as *const u8, 1)
+            };
+            return read[0] as isize;
+        }
+        1 => {
+            // 则 id 应被视作 *const u8 ，表示写入 data
+            // （作为 u8，即只考虑最低位的一个字节）到该用户程序 id 地址处。返回值应为0。
+            unsafe {
+                (_id as *mut u8).write_volatile(_data as u8);
+            }
+            return 0;
+        }
+        2 => {
+            // 表示查询当前任务调用编号为 id 的系统调用的次数，返回值为这个调用次数。本次调用也计入统计 。
+            return get_sys_call_cnt(_id) as isize;
+        }
+        _ => {}
+    }
     -1
 }

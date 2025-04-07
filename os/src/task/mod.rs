@@ -21,6 +21,7 @@ use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
+use crate::syscall;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -54,6 +55,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            sys_call_cnt: [0; syscall::ALL_SYSCALL_CNT],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -135,6 +137,22 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// 获取编号为 _id 的系统调用次数
+    fn get_sys_call_cnt(&self, _id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].sys_call_cnt[syscall::index_of_syscall(_id)] as usize
+    }
+
+    /// 增加编号 _id的 系统调用次数
+    fn inc_sys_call_cnt(&self, _id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        // println!("before:{}", inner.tasks[cur].sys_call_cnt[syscall::index_of_syscall(_id)]);
+        inner.tasks[cur].sys_call_cnt[syscall::index_of_syscall(_id)] = inner.tasks[cur].sys_call_cnt[syscall::index_of_syscall(_id)] + 1;
+        // println!("after:{}", inner.tasks[cur].sys_call_cnt[syscall::index_of_syscall(_id)]);
+    }
 }
 
 /// Run the first task in task list.
@@ -168,4 +186,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// 获取编号为 _id 的系统调用次数
+pub fn get_sys_call_cnt(_id: usize) -> usize {
+    TASK_MANAGER.get_sys_call_cnt(_id)
+}
+
+/// 增加编号 _id的 系统调用次数
+pub fn inc_sys_call_cnt(_id: usize) {
+    TASK_MANAGER.inc_sys_call_cnt(_id);
 }

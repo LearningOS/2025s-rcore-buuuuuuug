@@ -21,14 +21,22 @@ const SYSCALL_GET_TIME: usize = 169;
 /// trace syscall
 const SYSCALL_TRACE: usize = 410;
 
+/// 当前记录的syscall数量
+pub const ALL_SYSCALL_CNT: usize = 5;
+
+const SYSCALL_ARRAY: [usize; ALL_SYSCALL_CNT] = [SYSCALL_WRITE, SYSCALL_EXIT, SYSCALL_YIELD, SYSCALL_GET_TIME, SYSCALL_TRACE];
+
 mod fs;
 mod process;
 
 use fs::*;
 use process::*;
+use crate::task;
 
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    // 先记录syscall，再执行
+    task::inc_sys_call_cnt(syscall_id);
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),
@@ -37,4 +45,10 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_TRACE => sys_trace(args[0], args[1], args[2]),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
+}
+
+/// 返回当前syscall的索引位置
+pub fn index_of_syscall(syscall_id: usize) -> usize {
+    // 根据所有syscall 的编号，返回当前传入的syscall的索引位置
+    SYSCALL_ARRAY.iter().position(|&r| r == syscall_id).unwrap()
 }
